@@ -124,3 +124,80 @@ Actually the issue is the nonce component alone contributes `0.10 × 0.5 = 0.05`
 | High Risk | `mevRisk === 'high'/'critical'` | cliff_score threshold | Technically correct but noisy |
 
 The most impactful fix is **Total Value** — change `t.value` to `t.size` in the `useMempoolStats` function. Want me to patch that?
+
+
+-------------------------------------------------------------------------------------------
+
+# these are swaps hitting pools with liquidity cliffs. The visual confusion is that 197/200 transactions being "high risk" looks like noise, but it reflects genuine bot activity on monitored pools. what is the monitored pool?
+
+Good question. "Monitored pools" means pools registered in your `pool_registry` table in Vertica — the ones the `lob_materializer` cron fetches LOB (liquidity order book) tick state for.
+
+Check what's actually registered right now:
+
+```bash
+# Check pool registry in Vertica
+vsql -h 192.168.1.140 -U dbadmin -d testdb -c \
+  "SELECT pool_address, token0_symbol, token1_symbol, fee_tier 
+   FROM uniswap.pool_registry 
+   ORDER BY token0_symbol
+   LIMIT 20"
+```
+
+Or check what pools the worker has cached:
+
+```bash
+docker compose logs mempool-worker | grep "pool_cache\|Pool token cache" | tail -5
+```
+
+From the worker stats you've been seeing: `pool_cache=50 pools` — so 50 pools are registered. These are the pools where the LOB cliff component of cliff_score activates.
+
+**What the LOB cliff component does:**
+
+When a transaction targets a registered pool, the worker fetches the current tick state from Vertica (`vw_lob_cliffs`) and checks how close the current price is to the nearest liquidity cliff — a price level where liquidity drops suddenly. Transactions near a cliff are more vulnerable to sandwich attacks because the price impact per dollar is higher there.
+
+```
+lob_cliff = 0.0   → transaction not targeting a registered pool
+                    OR pool is registered but far from any cliff
+lob_cliff = 1.0   → transaction is very close to a liquidity cliff
+                    (high sandwich incentive for bots)
+```
+
+**The cliff score formula:**
+```
+cliff_score = 0.25 × lob_cliff      ← only fires for registered pools
+            + 0.20 × vpin_imbalance
+            + 0.15 × gas_z_score
+            + 0.10 × nonce_signal
+            + 0.15 × hawkes_score
+            + 0.15 × kyle_score
+```
+
+So if `lob_cliff = 1.0` and `nonce_signal = 0.5`, cliff_score = `0.25 + 0.05 = 0.30` — right at the threshold. That's exactly what you're seeing: `cliffScore: 0.325` on most alerts.
+
+**To see which specific pools are monitored:**
+
+```bash
+# From the worker pool cache
+docker exec mempool-worker python3 -c "
+import json, redis
+r = redis.from_url('redis://192.168.1.140:6379')
+keys = r.keys('pool_token:*')
+print(f'Registered pools: {len(keys)}')
+for k in keys[:10]:
+    print(r.get(k))
+" 2>/dev/null
+```
+
+Or from Vertica:
+
+```bash
+vsql -h 192.168.1.140 -U dbadmin -d testdb -c \
+  "SELECT pool_address, token0_symbol, token1_symbol 
+   FROM uniswap.pool_registry LIMIT 10"
+```
+
+The 197/200 being high risk means almost every alert is hitting one of these 50 registered pools near a liquidity cliff — which makes sense because your pool registry likely contains the highest-volume Uniswap V3 pools (USDC/WETH, WETH/USDT etc) which are exactly the pools bots target most aggressively.
+
+----------------------------------------------------------------------------
+
+
