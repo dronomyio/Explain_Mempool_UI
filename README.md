@@ -1,4 +1,4 @@
-# Explain_Mempool_UI
+Bot Intelligence# Explain_Mempool_UI
 
 ## Table of Contents
 
@@ -947,6 +947,7 @@ Once `is_buy` is correctly populated, VPIN stops being 50% and Kyle's Lambda get
 
 Want me to fix the direction decoder first since it unblocks both VPIN and Kyle simultaneously?
 
+# Bot Intelligence
 # what is BOT INTELLIGENCEbehavioral fingerprinting
 ```
 UNKNOWN200 tx
