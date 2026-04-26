@@ -369,7 +369,7 @@ async function fetchBlockGasStats() {
 This would give you exact numbers from the Ethereum protocol itself rather than approximations from pending transaction prices. 
 
 --------------------------------------------------------------------------------------
-
+## CLIFF SCORE
 # explain: CLIFF SCORE 1. VPIN × LOB depth
 ```
 Avg (window)
