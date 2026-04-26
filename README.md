@@ -1,5 +1,27 @@
 # Explain_Mempool_UI
 
+## Table of Contents
+
+- [Stat Cards](#stat-cards)
+  - [1. Buffered TXs](#1-buffered-txs)
+  - [2. Total Value](#2-total-value)
+  - [3. DEX Swaps](#3-dex-swaps)
+  - [4. Liquidations](#4-liquidations)
+  - [5. Avg Gas](#5-avg-gas)
+  - [6. High Risk](#6-high-risk)
+- [Gas Tracker](#gas-tracker)
+  - [Avg Gas](#avg-gas)
+  - [Priority Fee](#priority-fee)
+  - [Est. Next Base Fee](#est-next-base-fee)
+  - [Block Pressure](#block-pressure)
+- [Cliff Score](#cliff-score)
+- [Pool Intelligence](#pool-intelligence)
+- [Bot Intelligence](#bot-intelligence)
+- [Wallet Cluster Graph](#wallet-cluster-graph)
+
+
+
+
 <img width="705" height="622" alt="Screenshot 2026-04-26 at 9 22 12 AM" src="https://github.com/user-attachments/assets/30ce50cc-aca3-4e52-ac27-6c5f686291ac" />
 
 
