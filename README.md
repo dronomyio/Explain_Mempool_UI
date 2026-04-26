@@ -828,7 +828,7 @@ Once all three are fixed the cliff score becomes a genuine 6-component signal an
 
 ------------------------------------------------------------------------------
 
-
+# Pool Intelligence
 # the pool intelligence, 1. 0x7a25…488dcliff 0.55
 '''
 1. VPIN ORDER FLOW
