@@ -200,4 +200,141 @@ The 197/200 being high risk means almost every alert is hitting one of these 50 
 
 ----------------------------------------------------------------------------
 
+# explain : 1. GAS TRACKEREIP-1559 · live from mempool
+```
+1. Avg Gas
+37.2
+gwei
+
+1. Priority
+0.35
+gwei
+
+1. Est. Next
+39.1
+↑ 5.0%
+
+1. Est. Block Pressure74% what are these and how do you get them?
+```
+Let me read the exact gas tracker calculations:Now I have the full picture. Here's exactly what each number is, where it comes from, and how accurate it is:
+
+---
+
+## 1. Avg Gas (37.2 gwei) — `baseFee`
+
+**What it is:** An exponential moving average (EMA) of `gasPrice` from incoming mempool alerts.
+
+**How computed:**
+```typescript
+α = 0.3   // smoothing factor
+
+// On every incoming alert:
+ema.baseFee = α × tx.gasPrice + (1 - α) × ema.baseFee
+// = 30% new value + 70% historical average
+```
+
+**What `tx.gasPrice` actually is:** The `effective_gas_price_gwei` from the alert payload — the total gas price the transaction is willing to pay, combining base fee + priority fee.
+
+**Accuracy issue:** This is NOT the actual Ethereum base fee from the block header. It's inferred from pending transaction gas prices in the mempool. It's a reasonable approximation but will lag behind the true base fee and be biased by which transactions happen to score above your cliff threshold. Low-value transactions with low gas dominate the buffer, pulling the average down.
+
+**True source would be:** `eth_getBlockByNumber("latest")` → `baseFeePerGas` field. That's the authoritative number.
+
+---
+
+## 2. Priority (0.35 gwei) — `priorityFee`
+
+**What it is:** EMA of `maxPriorityFee` (the miner tip) from incoming alerts.
+
+**How computed:**
+```typescript
+ema.priority = α × tx.maxPriorityFee + (1 - α) × ema.priority
+```
+
+**What `maxPriorityFee` is:** EIP-1559 introduced a two-part gas price — `baseFeePerGas` (burned, set by the network) + `maxPriorityFeePerGas` (paid to the validator as a tip). The priority fee is what validators actually receive on top of the base fee.
+
+**Normal range:** 0.01–2 gwei for regular transactions. During congestion or NFT mints: 10–100+ gwei. Sandwich bots during active attacks: 50–500 gwei (they need to guarantee block inclusion ahead of the victim).
+
+**Why yours shows 0.35 gwei:** Your buffer is dominated by regular low-priority swaps. The high-gas sandwich bot transactions confirm quickly and leave the mempool before the next poll cycle captures them.
+
+---
+
+## 3. Est. Next (39.1 ↑ 5.0%) — `nextBaseFee`
+
+**What it is:** An estimate of what the next block's base fee will be.
+
+**How computed:**
+```typescript
+nextBaseFee = ema.baseFee × 1.05
+// Always +5% of current base fee
+```
+
+**The real EIP-1559 formula:** The protocol adjusts base fee by up to ±12.5% per block based on how full the previous block was:
+```
+if block_gas_used > target (50% full):
+    nextBaseFee = baseFee × (1 + 0.125 × (gas_used/target - 1))
+if block_gas_used < target:
+    nextBaseFee = baseFee × (1 - 0.125 × (1 - gas_used/target))
+```
+
+**The arrow direction:** `↑` if `nextBaseFee > baseFee`, `↓` if lower. The percentage shown is `|(nextBaseFee - baseFee) / baseFee| × 100`.
+
+**Accuracy:** The `×1.05` constant is a rough guess — it assumes the block is about 90% full (which would give roughly +5% adjustment). The real number depends on actual block utilisation which you don't currently fetch from the chain.
+
+---
+
+## 4. Est. Block Pressure 74% — `gasUsedRatio`
+
+**What it is:** An estimate of how full the current Ethereum block is (0% = empty, 100% = completely full at 30M gas).
+
+**How computed:**
+```typescript
+gasUsedRatio = Math.min(1, ema.baseFee / 50)
+// Divides current gas price by 50 gwei as a "full block" proxy
+```
+
+**The logic:** Historically, gas prices around 50 gwei correspond to heavily congested blocks (~100% full). So `gasPrice / 50` gives a rough utilisation estimate. At 37.2 gwei → `37.2/50 = 74%`.
+
+**Accuracy:** This is a proxy, not a real measurement. The true value comes from `eth_getBlockByNumber("latest")` → `gasUsed / gasLimit`. At 15M gas used out of 30M limit = 50% pressure. Your 74% from the formula is plausible but not precise.
+
+**The bar color:** Green below 50%, orange 50–80%, red above 80%.
+
+---
+
+## Summary — what's real vs estimated
+
+| Display | Source | Method | Accuracy |
+|---|---|---|---|
+| Avg Gas 37.2 | `tx.gasPrice` from alerts | EMA α=0.3 | ~Approximate — biased by alert filter |
+| Priority 0.35 | `tx.maxPriorityFee` | EMA α=0.3 | ~Approximate — low end biased |
+| Est. Next 39.1 ↑5% | `baseFee × 1.05` | Fixed multiplier | Rough estimate |
+| Block Pressure 74% | `baseFee / 50` | Linear proxy | Rough estimate |
+
+---
+
+## How to make these accurate
+
+The proper fix is one additional data source — a background poll of `eth_getBlockByNumber("latest")` every 12 seconds (one block):
+
+```typescript
+// In the api-server or page.tsx
+async function fetchBlockGasStats() {
+  const res = await fetch("https://ethereum.publicnode.com", {
+    method: "POST",
+    body: JSON.stringify({
+      jsonrpc: "2.0", method: "eth_getBlockByNumber",
+      params: ["latest", false], id: 1
+    })
+  });
+  const { result } = await res.json();
+  return {
+    baseFee:      parseInt(result.baseFeePerGas, 16) / 1e9,   // true base fee gwei
+    gasUsed:      parseInt(result.gasUsed, 16),
+    gasLimit:     parseInt(result.gasLimit, 16),
+    utilisation:  parseInt(result.gasUsed, 16) / parseInt(result.gasLimit, 16),
+    // nextBaseFee: compute from EIP-1559 formula
+  };
+}
+```
+
+This would give you exact numbers from the Ethereum protocol itself rather than approximations from pending transaction prices. 
 
