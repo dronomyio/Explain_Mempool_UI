@@ -1,5 +1,10 @@
 # Explain_Mempool_UI
 
+<img width="725" height="546" alt="Screenshot 2026-04-25 at 10 44 55 PM" src="https://github.com/user-attachments/assets/dfd4c719-07a7-46fb-81c5-2dc0f149335e" />
+<img width="753" height="633" alt="Screenshot 2026-04-25 at 10 58 26 PM" src="https://github.com/user-attachments/assets/b47dd821-c9f8-4c2d-a818-023740c8e418" />
+<img width="711" height="612" alt="Screenshot 2026-04-25 at 10 44 32 PM" src="https://github.com/user-attachments/assets/51b190fb-37db-40ff-9b15-43214de2fe6b" />
+
+
 # 1. what does 
 ### 1. buffered Txs 
 ```
