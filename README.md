@@ -1137,6 +1137,8 @@ Will show almost all `"unknown"`. The fix is the Neo4j cross-reference in the wo
 
 ---
 
+# Wallet Cluster Graph
+
 ## Why circles are different diameters
 
 This is intentional — the diameter encodes the cluster size. From `WalletClusterGraph.tsx`:
